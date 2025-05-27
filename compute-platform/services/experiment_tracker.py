@@ -2,8 +2,17 @@
 Experiment tracking service
 """
 from typing import Dict, List, Optional, Any
-from ..models.experiment import Experiment, ExperimentRun, HyperparameterTuningJob
-from ..models.job import Job
+
+try:
+    from ..models.experiment import Experiment, ExperimentRun, HyperparameterTuningJob
+    from ..models.job import Job
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from models.experiment import Experiment, ExperimentRun, HyperparameterTuningJob
+    from models.job import Job
 
 
 class ExperimentTracker:
@@ -21,7 +30,10 @@ class ExperimentTracker:
     async def submit_run(self, experiment: Experiment, run: ExperimentRun, job_config: Optional[Dict[str, Any]] = None) -> Job:
         """Submit an experiment run as a job"""
         # Create a job for the experiment run
-        from ..models.job import JobMetadata, JobResources, JobEnvironment
+        try:
+            from ..models.job import JobMetadata, JobResources, JobEnvironment
+        except ImportError:
+            from models.job import JobMetadata, JobResources, JobEnvironment
         
         metadata = JobMetadata(
             name=f"{experiment.name}-run-{run.run_number}",

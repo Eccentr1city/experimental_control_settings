@@ -2,12 +2,24 @@
 Authentication and authorization services
 """
 from typing import Optional
-from fastapi import HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from ..models.user import User, Project
+try:
+    from fastapi import HTTPException, Depends, status
+    from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+    FASTAPI_AVAILABLE = True
+except ImportError:
+    FASTAPI_AVAILABLE = False
 
-security = HTTPBearer()
+try:
+    from ..models.user import User, Project
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from models.user import User, Project
+
+security = HTTPBearer() if FASTAPI_AVAILABLE else None
 
 
 class AuthService:

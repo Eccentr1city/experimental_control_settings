@@ -2,10 +2,21 @@
 Experiment storage service
 """
 from typing import Dict, List, Optional, Any
-from ..models.experiment import (
-    Experiment, ExperimentRun, HyperparameterTuningJob, 
-    ModelVersion, ExperimentTemplate
-)
+
+try:
+    from ..models.experiment import (
+        Experiment, ExperimentRun, HyperparameterTuningJob, 
+        ModelVersion, ExperimentTemplate
+    )
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from models.experiment import (
+        Experiment, ExperimentRun, HyperparameterTuningJob, 
+        ModelVersion, ExperimentTemplate
+    )
 
 
 class ExperimentStore:

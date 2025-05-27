@@ -2,7 +2,15 @@
 Model registry service
 """
 from typing import Dict, List, Optional, Any, Tuple
-from ..models.experiment import ModelVersion, ModelRegistry
+
+try:
+    from ..models.experiment import ModelVersion, ModelRegistry
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from models.experiment import ModelVersion, ModelRegistry
 
 
 class ModelRegistryService:

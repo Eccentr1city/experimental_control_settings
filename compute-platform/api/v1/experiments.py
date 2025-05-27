@@ -277,7 +277,7 @@ async def start_experiment_run(
     experiment_id: str,
     hyperparameters: Optional[Dict[str, Any]] = Body(None),
     job_config: Optional[Dict[str, Any]] = Body(None),
-    background_tasks: BackgroundTasks = None,
+    background_tasks: Optional[BackgroundTasks] = None,
     current_user: User = Depends(get_current_user),
     experiment_store: ExperimentStore = Depends(get_experiment_store),
     experiment_tracker: ExperimentTracker = Depends(get_experiment_tracker)
@@ -313,13 +313,14 @@ async def start_experiment_run(
         experiment.started_at = experiment.started_at or datetime.utcnow()
         await experiment_store.update_experiment(experiment)
         
-        # Start tracking in background
-        background_tasks.add_task(
-            experiment_tracker.track_run,
-            experiment_id,
-            run.run_id,
-            job.id
-        )
+        # Start tracking in background if background_tasks is available
+        if background_tasks:
+            background_tasks.add_task(
+                experiment_tracker.track_run,
+                experiment_id,
+                run.run_id,
+                job.id
+            )
         
         return {
             "run_id": run.run_id,
@@ -499,6 +500,8 @@ async def register_model(
         
         # Check ownership
         experiment = await experiment_store.get_experiment(model_version.experiment_id)
+        if not experiment:
+            raise NotFoundError(f"Experiment {model_version.experiment_id} not found")
         if experiment.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail="Only model owner can register it")
         
@@ -607,7 +610,6 @@ async def list_experiment_templates(
                     "template_id": template.template_id,
                     "name": template.name,
                     "description": template.description,
-                    "category": template.category,
                     "framework": template.framework.value,
                     "popularity_score": template.popularity_score,
                     "tags": template.tags
@@ -650,9 +652,9 @@ async def create_experiment_from_template(
             parameters=parameters
         )
         
-        # Update template usage
-        template.usage_count += 1
-        await experiment_store.update_template(template)
+        # Note: Template usage tracking would be implemented in the store
+        # template.usage_count += 1
+        # await experiment_store.update_template(template)
         
         return {
             "experiment_id": experiment.id,

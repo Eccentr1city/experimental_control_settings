@@ -108,44 +108,50 @@ def test_service_creation():
 def test_basic_workflow():
     """Test a basic workflow end-to-end"""
     try:
+        import asyncio
         from models.experiment import Experiment, ModelFramework, ExperimentRun
         from services.experiment_tracker import ExperimentTracker
         from storage.experiments import ExperimentStore
         
         print("Testing basic workflow...")
         
-        # Create experiment
-        experiment = Experiment(
-            name="workflow-test",
-            owner_id="user1",
-            project_id="proj1",
-            framework=ModelFramework.PYTORCH,
-            dataset_id="dataset1"
-        )
+        async def run_workflow():
+            # Create experiment
+            experiment = Experiment(
+                name="workflow-test",
+                owner_id="user1",
+                project_id="proj1",
+                framework=ModelFramework.PYTORCH,
+                dataset_id="dataset1"
+            )
+            
+            # Create services
+            store = ExperimentStore()
+            tracker = ExperimentTracker()
+            
+            # Store experiment
+            stored_experiment = await store.create_experiment(experiment)
+            print(f"✅ Stored experiment: {stored_experiment.name}")
+            
+            # Initialize tracking
+            tracked_experiment = await tracker.initialize_experiment(experiment)
+            print(f"✅ Initialized tracking for: {tracked_experiment.name}")
+            
+            # Create a run
+            run = ExperimentRun(
+                experiment_id=experiment.id,
+                run_number=1
+            )
+            
+            # Submit run as job
+            job = await tracker.submit_run(experiment, run)
+            print(f"✅ Submitted run as job: {job.metadata.name}")
+            
+            return True
         
-        # Create services
-        store = ExperimentStore()
-        tracker = ExperimentTracker()
-        
-        # Store experiment
-        stored_experiment = store.create_experiment(experiment)
-        print(f"✅ Stored experiment: {stored_experiment.name}")
-        
-        # Initialize tracking
-        tracked_experiment = tracker.initialize_experiment(experiment)
-        print(f"✅ Initialized tracking for: {tracked_experiment.name}")
-        
-        # Create a run
-        run = ExperimentRun(
-            experiment_id=experiment.id,
-            run_number=1
-        )
-        
-        # Submit run as job
-        job = tracker.submit_run(experiment, run)
-        print(f"✅ Submitted run as job: {job.metadata.name}")
-        
-        return True
+        # Run the async workflow
+        result = asyncio.run(run_workflow())
+        return result
         
     except Exception as e:
         print(f"❌ Basic workflow test failed: {e}")
@@ -177,10 +183,14 @@ def test_data_serialization():
         job_dict = dataclasses.asdict(job)
         print(f"✅ Converted job to dict with {len(job_dict)} fields")
         
-        # Test JSON serialization (with datetime handling)
+        # Test JSON serialization (with datetime and enum handling)
         def json_serializer(obj):
             if isinstance(obj, datetime):
                 return obj.isoformat()
+            elif hasattr(obj, 'value'):  # Handle enums
+                return obj.value
+            elif hasattr(obj, '__dict__'):  # Handle other objects
+                return obj.__dict__
             raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
         
         job_json = json.dumps(job_dict, default=json_serializer, indent=2)
