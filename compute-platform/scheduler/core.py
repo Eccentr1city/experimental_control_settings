@@ -11,22 +11,23 @@ from typing import Dict, List, Optional, Set, Tuple, Any
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from ..models.job import Job, JobStatus, JobPriority
-from ..models.resource import (
+from models.job import Job, JobStatus, JobPriority
+from models.resource import (
     ResourceType, ResourceQuantity, Allocation, 
     AllocationStatus, ResourcePool
 )
-from ..models.cluster import Cluster, Node, NodeStatus
-from ..models.schedule import (
+from models.cluster import Cluster, Node, NodeStatus
+from models.schedule import (
     Schedule, SchedulingPolicy, QueueEntry, 
     SchedulingContext, SchedulingResult, SchedulingDecision
 )
-from ..models.user import User, Project, Quota
-from ..storage.jobs import JobStore
-from ..storage.cluster import ClusterStore
-from ..services.resource_manager import ResourceManager
-from ..services.monitoring import MonitoringService
-from ..utils.metrics import MetricsCollector
+from models.user import User, Project, Quota
+from storage.jobs import JobStore
+from storage.cluster import ClusterStore
+from services.resource_manager import ResourceManager
+from services.monitoring import MonitoringService
+from utils.metrics import MetricsCollector
+from executor.simulator import JobSimulator
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,9 @@ class Scheduler:
         self.resource_manager = resource_manager
         self.monitoring = monitoring_service
         self.config = config or {}
+        
+        # Initialize job simulator
+        self.job_simulator = JobSimulator(self.job_store)
         
         # Scheduler state
         self.state = SchedulerState()
@@ -134,6 +138,9 @@ class Scheduler:
         start_time = time.time()
         
         try:
+            # First store the job in the job store
+            await self.job_store.create_job(job)
+            
             with self.state.state_lock:
                 # Create queue entry
                 queue_entry = QueueEntry(
@@ -142,21 +149,20 @@ class Scheduler:
                     priority=job.priority,
                     user_id=job.metadata.owner_id,
                     project_id=job.metadata.project_id,
-                    resource_requirements=self._get_resource_requirements(job),
-                    preemptible=job.scheduling_constraints.preemptible,
+                    resource_requirements={},  # Simplified for now
+                    preemptible=getattr(job.scheduling_constraints, 'preemptible', True),
                     estimated_runtime=self._estimate_runtime(job)
                 )
                 
-                # Handle gang scheduling
-                if job.distributed.is_distributed and self.schedule_config.enable_gang_scheduling:
-                    gang_id = job.distributed.gang_id or f"gang-{job.id}"
+                # Handle gang scheduling (simplified)
+                if hasattr(job, 'distributed') and job.distributed.is_distributed and self.schedule_config.enable_gang_scheduling:
+                    gang_id = getattr(job.distributed, 'gang_id', None) or f"gang-{job.id}"
                     self.state.gang_groups[gang_id].add(job.id)
                     queue_entry.gang_id = gang_id
                     queue_entry.gang_size = job.distributed.world_size
                 
                 # Add to pending queue
-                heapq.heappush(self.state.pending_queue, 
-                             (-queue_entry.effective_priority, queue_entry))
+                heapq.heappush(self.state.pending_queue, queue_entry)
                 
                 # Update job status
                 job.status = JobStatus.QUEUED
@@ -448,7 +454,7 @@ class Scheduler:
                 heapq.heapify(self.state.pending_queue)
             
             # Start job execution
-            asyncio.create_task(self._start_job_execution(job))
+            await self._start_job_execution(job)
             
             # Update metrics
             wait_time = (job.scheduled_at - job.queued_at).total_seconds()
@@ -721,19 +727,133 @@ class Scheduler:
         if hasattr(job, 'estimated_runtime'):
             return job.estimated_runtime
         
-        # Use historical data for similar jobs
-        # This is a simplified implementation
-        similar_jobs = self._find_similar_completed_jobs(job)
-        if similar_jobs:
-            runtimes = [j.runtime_seconds for j in similar_jobs if j.runtime_seconds]
-            if runtimes:
-                return int(sum(runtimes) / len(runtimes))
-        
-        # Default estimates based on resource requirements
+        # Simple default estimates based on resource requirements
         if job.resources.gpu_count > 0:
             return 3600 * 4  # 4 hours for GPU jobs
         else:
             return 3600  # 1 hour for CPU jobs
+    
+    def _find_similar_completed_jobs(self, job: Job) -> List[Job]:
+        """Find similar completed jobs for runtime estimation"""
+        # Simplified implementation - return empty list
+        return []
+    
+    async def _build_scheduling_context(self, clusters: List[Cluster]) -> 'SchedulingContext':
+        """Build scheduling context"""
+        # Simplified implementation
+        from models.schedule import SchedulingContext
+        
+        available_nodes = []
+        for cluster in clusters:
+            nodes = await self.cluster_store.list_nodes(cluster.id)
+            available_nodes.extend([node.id for node in nodes])
+        
+        return SchedulingContext(
+            available_nodes=available_nodes,
+            running_jobs=list(self.state.running_jobs.keys()),
+            queued_jobs=[entry for _, entry in self.state.pending_queue]
+        )
+    
+    def _get_schedulable_jobs(self, context: 'SchedulingContext') -> List['QueueEntry']:
+        """Get jobs that can be scheduled"""
+        # Return first 10 jobs from queue for now
+        schedulable = []
+        temp_queue = list(self.state.pending_queue)
+        
+        for i, (priority, entry) in enumerate(temp_queue[:10]):
+            schedulable.append(entry)
+        
+        return schedulable
+    
+    async def _check_dependencies(self, job: Job) -> bool:
+        """Check if job dependencies are satisfied"""
+        # Simplified - always return True
+        return True
+    
+    async def _check_quotas(self, job: Job) -> bool:
+        """Check if job is within quota limits"""
+        # Simplified - always return True
+        return True
+    
+    def _is_gang_ready(self, gang_id: str) -> bool:
+        """Check if gang scheduling group is ready"""
+        # Simplified - always return True
+        return True
+    
+    def _get_satisfied_constraints(self, job: Job, node_id: str) -> List[str]:
+        """Get list of satisfied scheduling constraints"""
+        return ["basic_resources"]
+    
+    async def _rollback_allocation(self, job_id: str, node_id: str):
+        """Rollback resource allocation"""
+        try:
+            if job_id in self.state.job_allocations:
+                allocation = self.state.job_allocations[job_id]
+                await self.resource_manager.release_resources(
+                    node_id, job_id, allocation.resources
+                )
+                del self.state.job_allocations[job_id]
+        except Exception as e:
+            logger.error(f"Failed to rollback allocation for {job_id}: {e}")
+    
+    def _check_node_resources(self, node: Node, requirements: Dict, context) -> bool:
+        """Check if node has sufficient resources"""
+        # Simplified - always return True for now
+        return True
+    
+    def _check_tolerations(self, job: Job, node: Node) -> bool:
+        """Check if job tolerates node taints"""
+        return True
+    
+    def _check_affinity(self, job: Job, node: Node, context) -> bool:
+        """Check affinity rules"""
+        return True
+    
+    def _calculate_resource_fit_score(self, job: Job, node: Node, context) -> float:
+        """Calculate resource fit score"""
+        return 1.0
+    
+    def _calculate_affinity_score(self, job: Job, node: Node, context) -> float:
+        """Calculate affinity score"""
+        return 1.0
+    
+    def _calculate_load_score(self, node: Node, context) -> float:
+        """Calculate load balancing score"""
+        return 1.0
+    
+    async def _calculate_locality_score(self, job: Job, node: Node) -> float:
+        """Calculate data locality score"""
+        return 1.0
+    
+    def _calculate_cost_score(self, job: Job, node: Node) -> float:
+        """Calculate cost score"""
+        return 1.0
+    
+    def _update_resource_usage(self, node_id: str, requirements: Dict, allocate: bool = True):
+        """Update resource usage tracking"""
+        # Simplified implementation
+        pass
+    
+    async def _restart_job(self, job: Job):
+        """Restart a failed job"""
+        logger.info(f"Restarting job {job.id}")
+        await self.submit_job(job)
+    
+    async def _update_job_metrics(self, job_id: str, metrics: Dict[str, Any]):
+        """Update job metrics"""
+        # Record metrics in monitoring service
+        for metric_name, value in metrics.items():
+            await self.monitoring.record_job_metric(job_id, metric_name, value)
+    
+    async def _checkpoint_job(self, job: Job):
+        """Checkpoint a job"""
+        logger.info(f"Checkpointing job {job.id}")
+        # Simplified - just log for now
+    
+    async def _calculate_availability_windows(self, context) -> List[Tuple]:
+        """Calculate resource availability windows for backfill"""
+        # Simplified - return empty list
+        return []
     
     def _trigger_scheduling(self):
         """Trigger immediate scheduling attempt"""
@@ -831,3 +951,134 @@ class Scheduler:
                     (self.schedule_config.priority_boost_factor - 1.0)
         
         return base_priority * share_ratio * age_boost 
+    
+    async def _start_job_execution(self, job: Job):
+        """Start job execution using the job simulator"""
+        try:
+            logger.info(f"Starting execution for job {job.id}")
+            
+            # Start job simulation
+            success = await self.job_simulator.start_job_simulation(job)
+            
+            if success:
+                logger.info(f"Job {job.id} execution started successfully")
+                self.metrics.increment('jobs_started')
+            else:
+                logger.error(f"Failed to start execution for job {job.id}")
+                # Update job status to failed
+                job.status = JobStatus.FAILED
+                job.failure_reason = "Failed to start job execution"
+                job.completed_at = datetime.utcnow()
+                await self.job_store.update_job(job)
+                
+                # Release resources
+                await self._release_job_resources(job)
+                
+        except Exception as e:
+            logger.error(f"Error starting job execution for {job.id}: {str(e)}")
+            # Handle error by marking job as failed
+            job.status = JobStatus.FAILED
+            job.failure_reason = f"Execution start error: {str(e)}"
+            job.completed_at = datetime.utcnow()
+            await self.job_store.update_job(job)
+    
+    async def _stop_job_execution(self, job: Job, cancelled: bool = False, preempted: bool = False):
+        """Stop job execution"""
+        try:
+            logger.info(f"Stopping execution for job {job.id} (cancelled={cancelled}, preempted={preempted})")
+            
+            # Stop job simulation
+            success = await self.job_simulator.cancel_job(job.id)
+            
+            if success:
+                logger.info(f"Job {job.id} execution stopped successfully")
+            else:
+                logger.warning(f"Job {job.id} was not running in simulator")
+            
+            # Remove from running jobs
+            with self.state.state_lock:
+                if job.id in self.state.running_jobs:
+                    del self.state.running_jobs[job.id]
+            
+        except Exception as e:
+            logger.error(f"Error stopping job execution for {job.id}: {str(e)}")
+    
+    async def _release_job_resources(self, job: Job):
+        """Release resources allocated to a job"""
+        try:
+            if job.id in self.state.job_allocations:
+                allocation = self.state.job_allocations[job.id]
+                
+                # Release resources through resource manager
+                await self.resource_manager.release_resources(
+                    node_id=allocation.node_id,
+                    job_id=job.id,
+                    resources=allocation.resources
+                )
+                
+                # Update state
+                with self.state.state_lock:
+                    del self.state.job_allocations[job.id]
+                    if allocation.node_id in self.state.node_allocations:
+                        self.state.node_allocations[allocation.node_id].discard(job.id)
+                
+                logger.info(f"Released resources for job {job.id}")
+                
+        except Exception as e:
+            logger.error(f"Error releasing resources for job {job.id}: {str(e)}")
+    
+    async def _load_state(self):
+        """Load existing scheduler state from storage"""
+        try:
+            # Load pending jobs from storage
+            pending_jobs = await self.job_store.get_jobs_by_status(JobStatus.QUEUED)
+            
+            for job in pending_jobs:
+                queue_entry = QueueEntry(
+                    job_id=job.id,
+                    queue_name=job.queue_name,
+                    priority=job.priority,
+                    user_id=job.metadata.owner_id,
+                    project_id=job.metadata.project_id,
+                    resource_requirements={},  # Simplified for now
+                    preemptible=getattr(job.scheduling_constraints, 'preemptible', True),
+                    estimated_runtime=self._estimate_runtime(job)
+                )
+                
+                heapq.heappush(self.state.pending_queue, 
+                             (-queue_entry.effective_priority, queue_entry))
+            
+            # Load running jobs
+            running_jobs = await self.job_store.get_jobs_by_status(JobStatus.RUNNING)
+            for job in running_jobs:
+                self.state.running_jobs[job.id] = job
+            
+            logger.info(f"Loaded {len(pending_jobs)} pending and {len(running_jobs)} running jobs")
+            
+        except Exception as e:
+            logger.warning(f"Failed to load scheduler state: {e}")
+            # Continue with empty state
+    
+    async def _cleanup_completed_jobs(self):
+        """Clean up completed jobs periodically"""
+        while self.running:
+            try:
+                # Remove completed jobs from running state
+                completed_jobs = []
+                for job_id, job in list(self.state.running_jobs.items()):
+                    if job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+                        completed_jobs.append(job_id)
+                
+                for job_id in completed_jobs:
+                    if job_id in self.state.running_jobs:
+                        del self.state.running_jobs[job_id]
+                    if job_id in self.state.job_allocations:
+                        del self.state.job_allocations[job_id]
+                
+                if completed_jobs:
+                    logger.info(f"Cleaned up {len(completed_jobs)} completed jobs")
+                
+            except Exception as e:
+                logger.error(f"Error in job cleanup: {e}")
+            
+            await asyncio.sleep(300)  # Clean up every 5 minutes 

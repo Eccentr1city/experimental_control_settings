@@ -9,9 +9,16 @@ from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
 import aiofiles
 # import asyncpg  # Commented out as it's not available
-# from motor.motor_asyncio import AsyncIOMotorClient  # Commented out as it's not available
 
-from ..models.job import Job, JobStatus
+# Try to import real MongoDB, fall back to mock
+try:
+    from motor.motor_asyncio import AsyncIOMotorClient
+    MOTOR_AVAILABLE = True
+except ImportError:
+    from storage.mongo_mock import MockAsyncIOMotorClient as AsyncIOMotorClient
+    MOTOR_AVAILABLE = False
+
+from models.job import Job, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -59,34 +66,30 @@ class MongoJobStore(JobStore):
     """MongoDB implementation of job storage"""
     
     def __init__(self, connection_string: str, database: str = "compute_platform"):
-        # self.client = AsyncIOMotorClient(connection_string)
-        # self.db = self.client[database]
-        # self.collection = self.db.jobs
-        
-        # Placeholder implementation since motor is not available
-        self.connection_string = connection_string
-        self.database = database
-        self.jobs = {}  # In-memory storage for testing
+        self.client = AsyncIOMotorClient(connection_string)
+        self.db = self.client[database]
+        self.collection = self.db.jobs
         
         # Create indexes
         asyncio.create_task(self._create_indexes())
+        
+        if not MOTOR_AVAILABLE:
+            logger.info("Using mock MongoDB implementation for development")
     
     async def _create_indexes(self):
         """Create database indexes"""
-        # await self.collection.create_index("id", unique=True)
-        # await self.collection.create_index("status")
-        # await self.collection.create_index("metadata.owner_id")
-        # await self.collection.create_index("metadata.project_id")
-        # await self.collection.create_index("created_at")
-        # await self.collection.create_index([("status", 1), ("priority", -1)])
-        pass  # Placeholder
+        await self.collection.create_index("id", unique=True)
+        await self.collection.create_index("status")
+        await self.collection.create_index("metadata.owner_id")
+        await self.collection.create_index("metadata.project_id")
+        await self.collection.create_index("created_at")
+        await self.collection.create_index([("status", 1), ("priority", -1)])
     
     async def create_job(self, job: Job) -> str:
         """Create a new job"""
         try:
             job_dict = self._job_to_dict(job)
-            # result = await self.collection.insert_one(job_dict)
-            self.jobs[job.id] = job_dict  # Placeholder
+            result = await self.collection.insert_one(job_dict)
             logger.info(f"Created job {job.id}")
             return job.id
         except Exception as e:
@@ -96,8 +99,7 @@ class MongoJobStore(JobStore):
     async def get_job(self, job_id: str) -> Optional[Job]:
         """Get a job by ID"""
         try:
-            # job_dict = await self.collection.find_one({"id": job_id})
-            job_dict = self.jobs.get(job_id)  # Placeholder
+            job_dict = await self.collection.find_one({"id": job_id})
             if job_dict:
                 return self._dict_to_job(job_dict)
             return None
@@ -109,14 +111,11 @@ class MongoJobStore(JobStore):
         """Update an existing job"""
         try:
             job_dict = self._job_to_dict(job)
-            # result = await self.collection.replace_one(
-            #     {"id": job.id}, 
-            #     job_dict
-            # )
-            if job.id in self.jobs:
-                self.jobs[job.id] = job_dict
-                return True
-            return False
+            result = await self.collection.replace_one(
+                {"id": job.id}, 
+                job_dict
+            )
+            return result.modified_count > 0
         except Exception as e:
             logger.error(f"Failed to update job {job.id}: {str(e)}")
             raise
@@ -124,11 +123,8 @@ class MongoJobStore(JobStore):
     async def delete_job(self, job_id: str) -> bool:
         """Delete a job"""
         try:
-            # result = await self.collection.delete_one({"id": job_id})
-            if job_id in self.jobs:
-                del self.jobs[job_id]
-                return True
-            return False
+            result = await self.collection.delete_one({"id": job_id})
+            return result.deleted_count > 0
         except Exception as e:
             logger.error(f"Failed to delete job {job_id}: {str(e)}")
             raise
@@ -146,23 +142,18 @@ class MongoJobStore(JobStore):
                 query["status"] = query["status"].value
             
             # Count total
-            # total = await self.collection.count_documents(query)
-            total = len(self.jobs)  # Placeholder
+            total = await self.collection.count_documents(query)
             
             # Get paginated results
             skip = (page - 1) * page_size
             sort_direction = -1 if sort_order == "desc" else 1
             
-            # cursor = self.collection.find(query).sort(
-            #     sort_by, sort_direction
-            # ).skip(skip).limit(page_size)
+            cursor = self.collection.find(query).sort(
+                sort_by, sort_direction
+            ).skip(skip).limit(page_size)
             
             jobs = []
-            # async for job_dict in cursor:
-            #     jobs.append(self._dict_to_job(job_dict))
-            
-            # Placeholder implementation
-            for job_dict in list(self.jobs.values())[skip:skip+page_size]:
+            async for job_dict in cursor:
                 jobs.append(self._dict_to_job(job_dict))
             
             return jobs, total
@@ -174,15 +165,10 @@ class MongoJobStore(JobStore):
     async def get_jobs_by_status(self, status: JobStatus) -> List[Job]:
         """Get all jobs with a specific status"""
         try:
-            # cursor = self.collection.find({"status": status.value})
+            cursor = self.collection.find({"status": status.value})
             jobs = []
-            # async for job_dict in cursor:
-            #     jobs.append(self._dict_to_job(job_dict))
-            
-            # Placeholder implementation
-            for job_dict in self.jobs.values():
-                if job_dict.get("status") == status.value:
-                    jobs.append(self._dict_to_job(job_dict))
+            async for job_dict in cursor:
+                jobs.append(self._dict_to_job(job_dict))
             
             return jobs
         except Exception as e:
@@ -192,15 +178,10 @@ class MongoJobStore(JobStore):
     async def get_jobs_by_user(self, user_id: str) -> List[Job]:
         """Get all jobs for a user"""
         try:
-            # cursor = self.collection.find({"metadata.owner_id": user_id})
+            cursor = self.collection.find({"metadata.owner_id": user_id})
             jobs = []
-            # async for job_dict in cursor:
-            #     jobs.append(self._dict_to_job(job_dict))
-            
-            # Placeholder implementation
-            for job_dict in self.jobs.values():
-                if job_dict.get("metadata", {}).get("owner_id") == user_id:
-                    jobs.append(self._dict_to_job(job_dict))
+            async for job_dict in cursor:
+                jobs.append(self._dict_to_job(job_dict))
             
             return jobs
         except Exception as e:
@@ -210,15 +191,10 @@ class MongoJobStore(JobStore):
     async def get_jobs_by_project(self, project_id: str) -> List[Job]:
         """Get all jobs for a project"""
         try:
-            # cursor = self.collection.find({"metadata.project_id": project_id})
+            cursor = self.collection.find({"metadata.project_id": project_id})
             jobs = []
-            # async for job_dict in cursor:
-            #     jobs.append(self._dict_to_job(job_dict))
-            
-            # Placeholder implementation
-            for job_dict in self.jobs.values():
-                if job_dict.get("metadata", {}).get("project_id") == project_id:
-                    jobs.append(self._dict_to_job(job_dict))
+            async for job_dict in cursor:
+                jobs.append(self._dict_to_job(job_dict))
             
             return jobs
         except Exception as e:
@@ -312,7 +288,7 @@ class MongoJobStore(JobStore):
     def _dict_to_job(self, job_dict: Dict[str, Any]) -> Job:
         """Convert dictionary from storage to Job object"""
         # This is a simplified version - in production would need full reconstruction
-        from ..models.job import JobMetadata, JobEnvironment, JobResources
+        from models.job import JobMetadata, JobEnvironment, JobResources
         
         job = Job(
             id=job_dict["id"],
@@ -480,7 +456,7 @@ class FileJobStore(JobStore):
     def _dict_to_job(self, job_dict: Dict[str, Any]) -> Job:
         """Convert dictionary to job"""
         # Simplified - would need proper deserialization
-        from ..models.job import JobMetadata, JobEnvironment, JobResources
+        from models.job import JobMetadata, JobEnvironment, JobResources
         
         return Job(
             id=job_dict["id"],

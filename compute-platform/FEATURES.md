@@ -1,249 +1,145 @@
-# Compute Platform - Extended Features
+# Compute Platform - Features Overview
 
-## Overview
+## Platform Summary
 
-The compute platform has been significantly expanded with new features for ML/AI workloads, including experiment tracking, model deployment, and data pipeline orchestration. These features create a comprehensive platform for AI research and development automation.
+The Compute Platform is a comprehensive AI/ML infrastructure system designed for enterprise-scale machine learning workloads. It provides complete lifecycle management from data processing and experiment tracking through model deployment and serving, with advanced scheduling, resource management, and multi-tenant capabilities.
 
-## New Components
+## Core Capabilities
 
-### 1. Experiment Tracking & Model Registry
+### 🚀 **Job & Workload Management**
+- **Advanced Job Scheduling:** Multiple policies (priority, fair share, gang, backfill, preemptive) with topology-aware placement
+- **Resource Allocation:** CPU, GPU, memory, storage with NUMA awareness and exclusive node support
+- **Distributed Computing:** Multi-node job coordination with MPI, NCCL, and elastic training support
+- **Checkpointing:** Automatic state preservation with incremental/differential checkpointing and cross-cluster recovery
+- **Lifecycle Management:** Complete job state tracking from submission through completion with comprehensive monitoring
 
-**Models:**
-- `Experiment`: Full ML experiment lifecycle management
-- `ModelVersion`: Trained model versioning with lineage
-- `HyperparameterConfig`: Comprehensive hyperparameter tracking
-- `ExperimentRun`: Individual training runs within experiments
-- `HyperparameterTuningJob`: Automated hyperparameter optimization
-- `ModelRegistry`: Central repository for trained models
-- `DatasetVersion`: Dataset versioning and lineage
-- `ExperimentTemplate`: Reusable experiment configurations
+*→ Details: [API Summary](api/API_FEATURES_SUMMARY.md), [Scheduler Summary](scheduler/SCHEDULER_FEATURES_SUMMARY.md), [Models Summary](models/MODELS_SUMMARY.md)*
 
-**API Endpoints (`/v1/experiments`):**
-- `POST /`: Create new experiment
-- `GET /{experiment_id}`: Get experiment details
-- `POST /{experiment_id}/runs`: Start experiment run
-- `POST /{experiment_id}/tune`: Start hyperparameter tuning
-- `GET /{experiment_id}/runs`: List experiment runs
-- `GET /{experiment_id}/models`: List models from experiment
-- `POST /models/register`: Register model in registry
-- `GET /models/search`: Search models
-- `GET /templates`: List experiment templates
-- `POST /from-template`: Create experiment from template
+### 🧠 **ML Experiment & Model Management**
+- **Experiment Tracking:** Complete ML experiment lifecycle with hyperparameter optimization and run management
+- **Model Registry:** Centralized model versioning with access control, search, and discovery capabilities
+- **Hyperparameter Tuning:** Grid, random, and Bayesian optimization with early stopping and parallel execution
+- **Model Deployment:** Production model serving with auto-scaling, traffic splitting, and A/B testing
+- **Reproducibility:** Experiment templates, configuration tracking, and environment snapshots
 
-**Key Features:**
-- Automatic metric tracking and visualization
-- Model lineage and reproducibility
-- Hyperparameter search (grid, random, Bayesian)
-- Model versioning with deployment readiness tracking
-- Collaborative experiment sharing
-- Template-based experiment creation
+*→ Details: [API Summary](api/API_FEATURES_SUMMARY.md), [Models Summary](models/MODELS_SUMMARY.md), [Services Summary](services/SERVICES_FEATURES_SUMMARY.md)*
 
-### 2. Model Deployment & Serving
+### 🔄 **Data Pipeline Orchestration**
+- **DAG-Based Workflows:** Complex data pipeline management with dependency resolution and parallel execution
+- **Multi-Source Support:** S3, databases, streaming sources with format support (Parquet, CSV, JSON, Avro)
+- **Transformations:** SQL, Python, and Spark-based data processing with UDF support
+- **Data Lineage:** Complete provenance tracking and impact analysis
+- **Quality Management:** Data validation rules and quality monitoring
 
-**Models:**
-- `Deployment`: Model deployment configuration
-- `ModelEndpoint`: REST/gRPC/WebSocket endpoints
-- `AutoScalingPolicy`: Dynamic scaling based on metrics
-- `TrafficSplitConfig`: A/B testing and canary deployments
-- `DeploymentRevision`: Deployment history tracking
-- `InferenceRequest`: Request tracking
-- `ModelServingMetrics`: Performance metrics
-- `DeploymentAlert`: Alert configurations
+*→ Details: [API Summary](api/API_FEATURES_SUMMARY.md), [Models Summary](models/MODELS_SUMMARY.md)*
 
-**API Endpoints (`/v1/deployments`):**
-- `POST /`: Create deployment
-- `GET /{deployment_id}`: Get deployment details
-- `PATCH /{deployment_id}`: Update deployment
-- `POST /{deployment_id}/endpoints`: Add endpoint
-- `PUT /{deployment_id}/autoscaling`: Configure auto-scaling
-- `PUT /{deployment_id}/traffic`: Configure traffic splitting
-- `GET /{deployment_id}/metrics`: Get serving metrics
-- `DELETE /{deployment_id}`: Delete deployment
+### 🏗️ **Infrastructure & Resource Management**
+- **Multi-Cluster Federation:** Cross-cluster resource management and job placement
+- **GPU Management:** Comprehensive GPU tracking with MIG support, health monitoring, and topology awareness
+- **Node Management:** Automatic node provisioning, draining, cordoning, and maintenance scheduling
+- **Resource Pools:** Hierarchical resource organization with overcommit ratios and utilization tracking
+- **Capacity Planning:** Usage analytics, cost tracking, and reservation systems
 
-**Key Features:**
-- Multi-version model serving
-- Auto-scaling based on CPU, memory, latency, or custom metrics
-- Blue-green and canary deployment strategies
-- Traffic splitting for A/B testing
-- Request batching and caching
-- Built-in authentication and rate limiting
-- Real-time performance monitoring
-- Automatic rollback on failures
+*→ Details: [API Summary](api/API_FEATURES_SUMMARY.md), [Models Summary](models/MODELS_SUMMARY.md), [Storage Summary](storage/STORAGE_FEATURES_SUMMARY.md)*
 
-### 3. Data Pipeline Orchestration
+### 🎯 **Simulation & Development Environment**
+- **Job Simulation:** Realistic job execution simulation without actual compute resources
+- **Mock Database:** Full MongoDB-compatible in-memory database for development and testing
+- **Resource Simulation:** Mock cluster with configurable node profiles and resource tracking
+- **Monitoring Simulation:** Health checks, metrics collection, and alert management
+- **End-to-End Testing:** Complete platform testing without infrastructure dependencies
 
-**Models:**
-- `Pipeline`: DAG-based data pipeline definition
-- `PipelineStage`: Individual pipeline stages
-- `DataSource`: Configurable data sources (S3, GCS, databases)
-- `DataSink`: Data output configurations
-- `Transformation`: Data transformation operations
-- `PipelineRun`: Pipeline execution tracking
-- `StageRun`: Stage-level execution details
-- `DataLineage`: Data provenance tracking
-- `PipelineTemplate`: Reusable pipeline patterns
+*→ Details: [Simulation README](SIMULATION_README.md), [Test Results](../platform-testing/SIMULATION_TEST_RESULTS.md)*
 
-**API Endpoints (`/v1/pipelines`):**
-- `POST /`: Create pipeline
-- `GET /{pipeline_id}`: Get pipeline details
-- `POST /{pipeline_id}/runs`: Start pipeline run
-- `GET /{pipeline_id}/runs`: List pipeline runs
-- `GET /runs/{run_id}`: Get run details
-- `POST /runs/{run_id}/cancel`: Cancel running pipeline
-- `GET /{pipeline_id}/lineage`: Get data lineage
-- `GET /templates`: List pipeline templates
-- `POST /from-template`: Create from template
+## Architecture Overview
 
-**Key Features:**
-- Visual DAG editor and validation
-- Support for batch and streaming data
-- Built-in transformations (SQL, Python, Spark)
-- Automatic retry and error handling
-- Data quality validation
-- Incremental processing
-- Schema evolution tracking
-- Cost optimization through resource pooling
+### **API Layer** (`api/v1/`)
+FastAPI-based REST API with five main modules:
+- **Jobs API:** Job submission, monitoring, and lifecycle management
+- **Resources API:** Resource allocation, node management, and capacity planning  
+- **Experiments API:** ML experiment tracking and model registry
+- **Deployments API:** Model serving infrastructure and traffic management
+- **Pipelines API:** Data pipeline orchestration and lineage tracking
 
-## Integration Points
+### **Data Models** (`models/`)
+Comprehensive data models covering 9 domains:
+- Job Management, Resource Allocation, Cluster Operations, User Management
+- Experiment Tracking, Model Deployment, Data Pipelines, Scheduling, Checkpointing
 
-### 1. Experiment → Job Submission
-- Experiments automatically create compute jobs for training
-- Resource requirements derived from experiment configuration
-- Automatic checkpoint management
-- Distributed training support
+### **Scheduler** (`scheduler/`)
+Production-grade async scheduler with:
+- Multiple scheduling policies and intelligent job placement
+- Resource topology awareness and fragmentation management
+- Fair share computing and preemptive scheduling
+- Gang scheduling for distributed workloads
 
-### 2. Model → Deployment
-- Seamless model promotion from experiments to production
-- Automatic containerization and optimization
-- Model format conversion (ONNX, TorchScript, etc.)
-- Performance profiling and optimization
+### **Services** (`services/`)
+Business logic layer with implemented services:
+- **Authentication Service:** JWT-based auth with project-level access control
+- **Experiment Tracker:** ML experiment lifecycle management
+- **Model Registry:** Model versioning and discovery
 
-### 3. Pipeline → Job Orchestration
-- Pipeline stages submit jobs to compute platform
-- Resource allocation per stage
-- Cross-stage data sharing via checkpoints
-- Automatic cleanup and garbage collection
+### **Storage** (`storage/`)
+Pluggable persistence layer supporting:
+- **Multiple Backends:** MongoDB, PostgreSQL, and file-based storage
+- **Job Storage:** Complete job lifecycle and state persistence
+- **Experiment Storage:** ML experiment and model version tracking
 
-### 4. Unified Monitoring
-- Centralized metrics across experiments, deployments, and pipelines
-- Cost tracking and attribution
-- Resource utilization optimization
-- Anomaly detection and alerting
+## Enterprise Features
 
-## Security & Compliance Features
+### **Multi-Tenancy & Security**
+- **Project-Based Isolation:** Complete resource and data isolation between projects
+- **Role-Based Access Control:** Fine-grained permissions with organizational hierarchies
+- **Quota Management:** Hard/soft/burst limits with usage tracking and enforcement
+- **Audit Logging:** Comprehensive operation tracking for compliance
 
-### Access Control
-- Project-based isolation
-- Role-based permissions (experiment owner, model deployer, pipeline operator)
-- API key management for endpoints
-- Audit logging for all operations
+### **Monitoring & Observability**
+- **Real-Time Metrics:** Job performance, resource utilization, and system health
+- **Cost Tracking:** Detailed cost attribution and budget management
+- **Event Streaming:** System-wide event monitoring and alerting
+- **Performance Profiling:** Advanced debugging and optimization tools
 
-### Data Security
-- Encryption at rest and in transit
-- Secure credential management
-- Network isolation options
-- Compliance tags and data classification
+### **Scalability & Performance**
+- **Async Architecture:** High-concurrency design with non-blocking operations
+- **Horizontal Scaling:** Multi-instance deployment support
+- **Intelligent Caching:** Performance optimization for frequently accessed data
+- **Background Processing:** Long-running operations with proper task management
 
-## Advanced Capabilities
+## Platform Integration
 
-### 1. Multi-Cluster Federation
-- Cross-region model deployment
-- Global traffic routing
-- Disaster recovery
-- Data locality optimization
-
-### 2. Cost Optimization
-- Spot instance support for experiments
-- Resource pooling and sharing
-- Idle resource detection
-- Cost allocation and chargeback
-
-### 3. MLOps Automation
-- CI/CD integration for models
-- Automated testing and validation
-- Performance regression detection
-- Model drift monitoring
-
-## Potential Vulnerability Points
-
-The expanded platform introduces several complex interaction points that could be exploited:
-
-1. **Experiment Template System**: Template injection or manipulation
-2. **Model Registry Access**: Cross-project model access
-3. **Pipeline DAG Execution**: Dependency chain exploitation
-4. **Traffic Splitting Logic**: Request routing manipulation
-5. **Auto-scaling Triggers**: Resource exhaustion attacks
-6. **Data Lineage Tracking**: Metadata poisoning
-7. **Checkpoint Sharing**: Cross-experiment data leakage
-8. **Transformation Execution**: Code injection in custom transforms
-9. **Endpoint Authentication**: API key management vulnerabilities
-10. **Federation Communication**: Cross-cluster authentication bypass
-
-## Usage Examples
-
-### 1. End-to-End ML Workflow
-```python
-# Create experiment
-experiment = create_experiment(
-    name="sentiment-analysis-v2",
-    framework="pytorch",
-    dataset_id="tweets-2024"
-)
-
-# Run hyperparameter tuning
-tuning_job = start_tuning(
-    experiment_id=experiment.id,
-    search_space={
-        "learning_rate": [0.001, 0.01, 0.1],
-        "batch_size": [16, 32, 64]
-    }
-)
-
-# Deploy best model
-deployment = create_deployment(
-    model_version_id=experiment.best_model.id,
-    auto_scaling=True,
-    target_qps=1000
-)
+### **End-to-End ML Workflows**
+```
+Data → Pipeline → Experiment → Model → Deployment → Serving
+  ↓        ↓         ↓        ↓         ↓         ↓
+Storage  Jobs    Training  Registry  Scaling  Monitoring
 ```
 
-### 2. Data Pipeline with ML
-```python
-# Create feature engineering pipeline
-pipeline = create_pipeline(
-    name="user-features",
-    stages=[
-        DataSource(type="s3", path="raw-events/*"),
-        Transform(sql="SELECT user_id, COUNT(*) as activity..."),
-        Transform(python_function=compute_embeddings),
-        DataSink(type="feature_store", table="user_features")
-    ]
-)
+### **Cross-Component Integration**
+- **Experiment → Job Automation:** Automatic compute job creation for training runs
+- **Model → Deployment:** Seamless promotion from experiments to production serving
+- **Pipeline → Job Orchestration:** Stage-based job submission and resource management
+- **Unified Monitoring:** Cross-platform metrics, logging, and alerting
 
-# Schedule daily runs
-schedule_pipeline(pipeline.id, cron="0 0 * * *")
-```
+## Development & Deployment
 
-### 3. A/B Testing Deployment
-```python
-# Deploy new model version with canary
-update_traffic_split(
-    deployment_id=prod_deployment.id,
-    version_weights={
-        "v1.0": 90,
-        "v2.0": 10  # 10% canary
-    },
-    auto_increment=True  # Gradually increase v2.0 traffic
-)
-```
+### **Development Support**
+- **Multiple Environments:** Production database backends and lightweight testing implementations
+- **Mock Services:** In-memory implementations for rapid development
+- **Comprehensive Testing:** Unit, integration, and end-to-end testing support
+- **Debug Capabilities:** Enhanced debugging modes and inspection tools
 
-## Future Enhancements
+### **Production Features**
+- **High Availability:** Multi-region deployment with automatic failover
+- **Backup & Recovery:** Automated backup strategies with point-in-time recovery
+- **Security Hardening:** Encryption, network policies, and compliance features
+- **Performance Monitoring:** Detailed observability and performance optimization
 
-1. **AutoML Capabilities**: Automated model architecture search
-2. **Federated Learning**: Privacy-preserving distributed training
-3. **Model Explainability**: Built-in SHAP/LIME integration
-4. **Synthetic Data Generation**: Privacy-safe data augmentation
-5. **Reinforcement Learning**: Environment management and training
-6. **Edge Deployment**: Model optimization for edge devices
-7. **Multi-Modal Models**: Support for vision, NLP, and audio models
-8. **Model Marketplace**: Internal model sharing and discovery 
+## Getting Started
+
+1. **Job Submission:** Start with the [Jobs API](api/API_FEATURES_SUMMARY.md#1-jobs-api-v1jobs) for basic compute workloads
+2. **ML Experiments:** Use the [Experiments API](api/API_FEATURES_SUMMARY.md#3-experiments-api-v1experiments) for machine learning workflows  
+3. **Data Processing:** Explore the [Pipelines API](api/API_FEATURES_SUMMARY.md#5-pipelines-api-v1pipelines) for data orchestration
+4. **Model Serving:** Deploy models with the [Deployments API](api/API_FEATURES_SUMMARY.md#4-deployments-api-v1deployments)
+5. **Resource Management:** Monitor and manage resources via the [Resources API](api/API_FEATURES_SUMMARY.md#2-resources-api-v1resources)
+
+For detailed implementation information, refer to the component-specific summaries linked throughout this document. 

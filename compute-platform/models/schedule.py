@@ -76,6 +76,22 @@ class QueueEntry:
     # Dependencies
     waiting_on: List[str] = field(default_factory=list)  # job IDs
     dependency_check_interval: int = 60  # seconds
+    
+    def __lt__(self, other):
+        """Less than comparison for heap ordering"""
+        if not isinstance(other, QueueEntry):
+            return NotImplemented
+        # Higher priority first (lower number = higher priority)
+        if self.priority != other.priority:
+            return self.priority < other.priority
+        # Earlier submission time as tiebreaker
+        return self.submission_time < other.submission_time
+    
+    def __eq__(self, other):
+        """Equality comparison"""
+        if not isinstance(other, QueueEntry):
+            return NotImplemented
+        return self.job_id == other.job_id
 
 
 @dataclass
